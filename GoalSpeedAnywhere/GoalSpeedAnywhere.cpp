@@ -35,6 +35,10 @@ void GoalSpeedAnywhere::onUnload() {}
 void GoalSpeedAnywhere::ShowSpeed()
 {
 	if(!(*bEnabled)) return;
+
+	// Do not show the speed if it is zero. This would e.g. happen when the ball explodes because it hits the ground with zero seconds left.
+	if(Speed < FLT_EPSILON) return;
+
 	bShowSpeed = true;
 
 	gameWrapper->SetTimeout(std::bind(&GoalSpeedAnywhere::HideSpeed, this), *Duration);
@@ -52,15 +56,19 @@ void GoalSpeedAnywhere::GetSpeed()
 	if(server.IsNull()) return;
 	GameSettingPlaylistWrapper playlist = server.GetPlaylist();
 	if(playlist.IsNull()) return;
-
-	// Exclude some game modes where goals are not always outside of arena bounds, or horizontal
-	static const std::unordered_set<int> excludedPlaylistIds = { 15, 17, 18, 19, 23 }; // Snow Day, Hoops, Rumble, Workshop, Dropshot
-	if(excludedPlaylistIds.count(playlist.GetPlaylistId()) > 0) return;
-
 	BallWrapper ball = server.GetBall();
 	if(ball.IsNull()) return;
 
 	Speed = ball.GetVelocity().magnitude();
+
+	// The following code is only required for cases where OnHitGoal and Explode events are not sent
+	// Currently this can only happen in freeplay with goal scoring turned off in Bakkesmod.
+	// The issue in this case is that there is no event to hook in to, so we need to manually check if the ball is inside the goal and was outside before.
+
+	// This currently only works for "standard" goal areas, i.e. no goal areas within the pitch (some snow day and rumble maps)
+	// or horizontal goal areas (rumble and drop shot).
+	static const std::unordered_set<int> excludedPlaylistIds = { 15, 17, 18, 19, 23 }; // Snow Day, Hoops, Rumble, Workshop, Dropshot
+	if(excludedPlaylistIds.count(playlist.GetPlaylistId()) > 0) return;
 
 	auto ballRadius = ball.GetRadius();
 
